@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"designs.capital/dogepool/persistence"
+	"designs.capital/dogepool/utils"
 )
 
 func (pool *PoolServer) startBufferManager() error {
@@ -26,7 +27,7 @@ func (pool *PoolServer) flushShareBufferAtInterval(interval time.Duration) {
 
 		err := persistence.Shares.InsertBatch(sharesToWrite)
 		if err != nil {
-			log.Println(err)
+			utils.LogInfof("%s %+v", err, sharesToWrite)
 			pool.Lock()
 			pool.shareBuffer = append(pool.shareBuffer, sharesToWrite...)
 			pool.Unlock()

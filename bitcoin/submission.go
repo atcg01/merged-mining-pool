@@ -1,6 +1,8 @@
 package bitcoin
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Submission struct {
 	Header            string
@@ -21,7 +23,7 @@ func (s *Submission) Serialize() string {
 
 func (b *BitcoinBlock) createSubmissionHex() string {
 	transactionCount := uint(len(b.Template.Transactions) + 1) // 1 for coinbase
-
+	// utils.LogInfof("%e - %e - %e - %e", b.header, varUint(transactionCount), b.coinbase, b.buildTransactionBuffer())
 	submission := Submission{
 		Header:            b.header,
 		TransactionCount:  varUint(transactionCount),
@@ -29,7 +31,7 @@ func (b *BitcoinBlock) createSubmissionHex() string {
 		TransactionBuffer: b.buildTransactionBuffer(),
 	}
 
-	// submissionDebugOutput(submission.Header, submission.TransactionCount, submission.Coinbase, submission.TransactionBuffer, submission.Serialize())
+	// utils.LogInfo(submission.Header, submission.TransactionCount, submission.Coinbase, submission.TransactionBuffer, submission.Serialize())
 	return submission.Serialize()
 }
 

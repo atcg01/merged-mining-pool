@@ -2,6 +2,7 @@ package pool
 
 import (
 	"designs.capital/dogepool/bitcoin"
+	"designs.capital/dogepool/utils"
 )
 
 const (
@@ -30,6 +31,10 @@ func validateAndWeighShare(primary *bitcoin.BitcoinBlock, aux1 *bitcoin.AuxBlock
 
 	status := shareInvalid
 
+	s, _ := primarySum.Float64()
+	t, _ := primaryTargetBig.Float64()
+	utils.LogInfof("share: %e ---- target: %e", s, t)
+
 	if primarySum.Cmp(primaryTargetBig) <= 0 {
 		status = primaryCandidate
 	}
@@ -53,6 +58,7 @@ func validateAndWeighShare(primary *bitcoin.BitcoinBlock, aux1 *bitcoin.AuxBlock
 
 	poolTargettBig, _ := poolTarget.ToBig()
 	if primarySum.Cmp(poolTargettBig) <= 0 {
+		// sd, _ := primarySum.Div(poolTargettBig, primarySum).Float64()
 		return shareValid, shareDifficulty
 	}
 

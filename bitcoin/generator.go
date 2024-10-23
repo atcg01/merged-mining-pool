@@ -118,18 +118,20 @@ func (b *BitcoinBlock) Sum() (*big.Int, error) {
 	if b.header == "" {
 		return nil, errors.New("generate header first")
 	}
+	// utils.LogInfo(b.header)
 
 	digest, err := b.chain.HeaderDigest(b.header)
 	if err != nil {
 		return nil, err
 	}
+	// utils.LogInfo("Buffer script hex ?", digest)
 
 	digest, err = reverseHexBytes(digest)
 	if err != nil {
 		return nil, err
 	}
-
 	b.hash = digest
+	// utils.LogInfo("Buffer script reverse hex", digest)
 
 	digestBytes, err := hex.DecodeString(digest)
 	if err != nil {
@@ -154,7 +156,7 @@ func (b *BitcoinBlock) Submit() (string, error) {
 	if b.Template.MimbleWimble != "" {
 		submission = submission + "01" + b.Template.MimbleWimble
 	}
-
+	// utils.LogInfo("Submission", submission)
 	return submission, nil
 }
 

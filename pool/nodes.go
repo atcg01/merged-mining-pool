@@ -9,6 +9,7 @@ import (
 
 	"designs.capital/dogepool/bitcoin"
 	"designs.capital/dogepool/rpc"
+	"designs.capital/dogepool/utils"
 	"github.com/go-zeromq/zmq4"
 )
 
@@ -86,11 +87,11 @@ func (pool *PoolServer) listenForBlockNotifications() error {
 		prevBlockHash := msg.previousBlockHash
 
 		m := "**New %v block: %v - %v**"
-		log.Printf(m, chainName, newCount, prevBlockHash)
+		utils.LogInfof(m, chainName, newCount, prevBlockHash)
 
 		if prevCount != 0 && (prevCount+1) != newCount {
 			m = "We missed a %v block notification, previous count: %v current count: %v"
-			log.Printf(m, chainName, prevCount, newCount)
+			utils.LogInfof(m, chainName, prevCount, newCount)
 		}
 
 		hashblockCounterMap[chainName] = newCount

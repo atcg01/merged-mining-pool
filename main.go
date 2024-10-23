@@ -13,6 +13,7 @@ import (
 	"designs.capital/dogepool/persistence"
 	"designs.capital/dogepool/pool"
 	"designs.capital/dogepool/rpc"
+	"designs.capital/dogepool/utils"
 )
 
 func main() {
@@ -43,26 +44,26 @@ func parseCommandLineOptions() string {
 func startPoolServer(configuration *config.Config, managers map[string]*rpc.Manager) *pool.PoolServer {
 	poolServer := pool.NewServer(configuration, managers)
 	go poolServer.Start()
-	log.Println("Started Pool on port: " + configuration.Port)
+	utils.LogInfo("Started Pool on port: " + configuration.Port)
 	return poolServer
 }
 
 func startAPIServer(configuration *config.Config) {
 	go api.ListenAndServe(configuration)
-	log.Println("Started API on port: " + configuration.API.Port)
+	utils.LogInfo("Started API on port: " + configuration.API.Port)
 }
 
 func startStatManager(configuration *config.Config) {
 	hashrateWindow := mustParseDuration(configuration.HashrateWindow)
 	statsRecordInterval := mustParseDuration(configuration.PoolStatsInterval)
 	go persistence.UpdateStatsOnInterval(configuration.PoolName, hashrateWindow, statsRecordInterval)
-	log.Printf("Stat Manager running every %v with a hashrate window of %v\n", statsRecordInterval, hashrateWindow)
+	utils.LogInfof("Stat Manager running every %v with a hashrate window of %v\n", statsRecordInterval, hashrateWindow)
 }
 
 func startPayoutService(configuration *config.Config, manager map[string]*rpc.Manager) {
 	interval := mustParseDuration(configuration.Payouts.Interval)
 	go payouts.RunManager(configuration, manager, interval)
-	log.Printf("Payouts manager running every %v\n", interval)
+	utils.LogInfof("Payouts manager running every %v\n", interval)
 }
 
 func startAppStatsService(configuration *config.Config) {

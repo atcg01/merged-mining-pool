@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"designs.capital/dogepool/bitcoin"
+	"designs.capital/dogepool/utils"
 	"github.com/google/uuid"
 )
 
@@ -56,6 +57,10 @@ func handleStratumRequest(request *stratumRequest, client *stratumClient, pool *
 		return miningSubmit(request, client, pool)
 	case "mining.multi_version":
 		return nil, nil // ignored
+	case "mining.get_transactions":
+		log.Println(request.Method, string(request.Params), "-> return nil, nil !!")
+		return nil, nil // ignored
+		// return stratumResponse{}, nil
 	default:
 		return stratumResponse{}, errors.New("unknown stratum request method: " + request.Method)
 	}
@@ -152,7 +157,7 @@ func miningAuthorize(request *stratumRequest, client *stratumClient, pool *PoolS
 		blockchainIndex++
 	}
 
-	log.Printf("Authorized rig: %v mining to addresses: %v", rigID, minerAddresses)
+	utils.LogInfof("Authorized rig: %v mining to addresses: %v", rigID, minerAddresses)
 
 	client.login = loginString
 

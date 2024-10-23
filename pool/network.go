@@ -8,6 +8,8 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"designs.capital/dogepool/utils"
 )
 
 const extranonce1Length = 4
@@ -81,12 +83,13 @@ const maxRequestSize = 1024
 
 func (pool *PoolServer) openNewConnection(client *stratumClient) {
 	err := pool.handleStratumConnection(client)
-	if err != nil {
-		log.Println(err)
-		removeSession(client.sessionID)
-		client.connection.Close()
-		numberOfConnections--
-	}
+	utils.LogInfo(err)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	removeSession(client.sessionID)
+	// 	client.connection.Close()
+	// 	numberOfConnections--
+	// }
 }
 
 func (pool *PoolServer) handleStratumConnection(client *stratumClient) error {
@@ -108,7 +111,7 @@ func (pool *PoolServer) handleStratumConnection(client *stratumClient) error {
 			banClient(client)
 			return err
 		} else if err != nil {
-			log.Println("Socket read error from: " + client.ip)
+			log.Println("Socket read error from: " + client.ip + " " + err.Error())
 			return err
 		}
 

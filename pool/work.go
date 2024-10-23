@@ -90,21 +90,21 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 
 	shareStatus, shareDifficulty := validateAndWeighShare(&primaryBlockTemplate, auxBlock, p.config.PoolDifficulty)
 
-	heightMessage := fmt.Sprintf("%v", primaryBlockHeight)
+	heightMessage := fmt.Sprintf("%s:%v", p.config.BlockChainOrder[0], primaryBlockHeight)
 	if shareStatus == dualCandidate {
-		heightMessage = fmt.Sprintf("%v,%v", primaryBlockHeight, auxBlock.Height)
+		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[0], auxBlock.Height)
 	} else if shareStatus == aux1Candidate {
-		heightMessage = fmt.Sprintf("%v", auxBlock.Height)
+		heightMessage = fmt.Sprintf("%s:%v", p.config.BlockChainOrder[0], auxBlock.Height)
 	}
 
 	if shareStatus == shareInvalid {
-		m := "❔ Invalid share for block %v from %v [%v] [%v]"
-		m = fmt.Sprintf(m, heightMessage, client.ip, rigID, client.userAgent)
+		m := "❔ Invalid share for block %v from %v [%v] [%v] [%v/%v]"
+		m = fmt.Sprintf(m, heightMessage, client.ip, rigID, client.userAgent, shareDifficulty, p.config.PoolDifficulty)
 		return errors.New(m)
 	}
 
-	m := "Valid share for block %v from %v [%v]"
-	m = fmt.Sprintf(m, heightMessage, client.ip, rigID)
+	m := "Valid share for block %v from %v [%v] [%v/%v]"
+	m = fmt.Sprintf(m, heightMessage, client.ip, rigID, shareDifficulty, p.config.PoolDifficulty)
 	log.Println(m)
 
 	blockTarget := bitcoin.Target(primaryBlockTemplate.Template.Target)

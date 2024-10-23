@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"designs.capital/dogepool/config"
+	"designs.capital/dogepool/utils"
 )
 
 var (
@@ -22,6 +23,7 @@ func MakePersister(configuration *config.Config) error {
 	connStr = fmt.Sprintf(connStr, config.User, config.Password,
 		config.Host, config.Port, config.Database, config.SSLMode)
 
+	utils.LogInfo(connStr)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return err
