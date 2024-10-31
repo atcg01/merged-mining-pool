@@ -25,12 +25,12 @@ func (b BlockChainOrder) GetPrimary() string {
 	return b[0]
 }
 
-func (b BlockChainOrder) GetAux1() string {
-	if len(b) < 2 {
+func (b BlockChainOrder) GetAuxN(n int) string {
+	if len(b) < n+1 {
 		return ""
 	}
 
-	return b[1]
+	return b[n]
 }
 
 type sqlConfig struct {

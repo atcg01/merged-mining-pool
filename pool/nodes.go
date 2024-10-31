@@ -29,8 +29,8 @@ func (p *PoolServer) GetPrimaryNode() blockChainNode {
 	return p.activeNodes[p.config.GetPrimary()]
 }
 
-func (p *PoolServer) GetAux1Node() blockChainNode {
-	return p.activeNodes[p.config.GetAux1()]
+func (p *PoolServer) GetAuxNNode(n int) blockChainNode {
+	return p.activeNodes[p.config.GetAuxN(n)]
 }
 
 type hashblockCounterMap map[string]uint32 // "blockChainName" => hashblock msg counter
@@ -84,10 +84,10 @@ func (pool *PoolServer) listenForBlockNotifications() error {
 		chainName := msg.blockChainName
 		prevCount := hashblockCounterMap[chainName]
 		newCount := msg.blockHashCounter
-		prevBlockHash := msg.previousBlockHash
+		// prevBlockHash := msg.previousBlockHash
 
 		m := "**New %v block: %v - %v**"
-		utils.LogInfof(m, chainName, newCount, prevBlockHash)
+		// utils.LogInfof(m, chainName, newCount, prevBlockHash)
 
 		if prevCount != 0 && (prevCount+1) != newCount {
 			m = "We missed a %v block notification, previous count: %v current count: %v"
@@ -126,11 +126,13 @@ func (p *PoolServer) submitBlockToChain(block bitcoin.BitcoinBlock) error {
 	return nil
 }
 
-func (p *PoolServer) submitAuxBlock(primaryBlock bitcoin.BitcoinBlock, aux1Block bitcoin.AuxBlock) error {
+func (p *PoolServer) submitAuxBlock(n int, primaryBlock bitcoin.BitcoinBlock, auxBlock bitcoin.AuxBlock) error {
 	auxpow := bitcoin.MakeAuxPow(primaryBlock)
-	success, err := p.GetAux1Node().RPC.SubmitAuxBlock(aux1Block.Hash, auxpow.Serialize())
+	success, err := p.GetAuxNNode(n).RPC.SubmitAuxBlock(auxBlock.Hash, auxpow.Serialize())
+	// utils.LogInfof("submitAuxBlock %d -> %+v, %t -- %+v", n, p.config.GetAuxN(n), success, err)
+
 	if !success {
-		nodeName := p.GetAux1Node().ChainName
+		nodeName := p.GetAuxNNode(n).ChainName
 		m := "⚠️  %v node failed to submit aux block: %v"
 		m = fmt.Sprintf(m, nodeName, err.Error())
 		return errors.New(m)

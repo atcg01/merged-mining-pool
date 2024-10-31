@@ -16,6 +16,7 @@ type AuxBlock struct {
 	Bits              string `json:"bits"`
 	Height            uint64 `json:"height"`
 	Target            string `json:"target"`
+	Target2           string `json:"_target"`
 }
 
 func (b *AuxBlock) GetWork() string {

@@ -12,9 +12,5 @@ func (p Pair) GetPrimary() bitcoin.BitcoinBlock {
 }
 
 func (p Pair) GetAuxN(n int) *bitcoin.AuxBlock {
-	return &p.AuxBlocks[n]
-}
-
-func (p Pair) GetAux1() *bitcoin.AuxBlock {
-	return p.GetAuxN(0)
+	return &p.AuxBlocks[n-1]
 }

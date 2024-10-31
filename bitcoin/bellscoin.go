@@ -2,14 +2,12 @@ package bitcoin
 
 import (
 	"regexp"
-
-	"designs.capital/dogepool/utils"
 )
 
 type Bellscoin struct{}
 
 func (Bellscoin) ChainName() string {
-	return "Bellscoin"
+	return "bellscoin"
 }
 
 func (Bellscoin) CoinbaseDigest(coinbase string) (string, error) {
@@ -29,7 +27,7 @@ func (Bellscoin) ValidMainnetAddress(address string) bool {
 }
 
 func (Bellscoin) ValidTestnetAddress(address string) bool {
-	utils.LogInfo(address)
+	// utils.LogInfo(address)
 	return regexp.MustCompile("[a-zA-Z0-9]{34}").MatchString(address)
 }
 

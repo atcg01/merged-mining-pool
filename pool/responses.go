@@ -58,7 +58,7 @@ func handleStratumRequest(request *stratumRequest, client *stratumClient, pool *
 	case "mining.multi_version":
 		return nil, nil // ignored
 	case "mining.get_transactions":
-		log.Println(request.Method, string(request.Params), "-> return nil, nil !!")
+		// utils.LogInfo(request.Method, string(request.Params), "-> return nil, nil !!")
 		return nil, nil // ignored
 		// return stratumResponse{}, nil
 	default:
@@ -187,7 +187,7 @@ func miningAuthorize(request *stratumRequest, client *stratumClient, pool *PoolS
 
 func miningExtranonceSubscribe(request *stratumRequest, client *stratumClient) (stratumResponse, error) {
 	var response stratumResponse
-
+	utils.LogInfo("miningExtranonceSubscribe", request, client)
 	// TODO - I need to find a good example for this one
 
 	return response, nil
@@ -207,7 +207,7 @@ func miningSubmit(request *stratumRequest, client *stratumClient, pool *PoolServ
 
 	err = pool.recieveWorkFromClient(work, client)
 	if err != nil {
-		log.Println(err)
+		utils.LogError(err)
 	}
 
 	response.Result = interface{}(true)

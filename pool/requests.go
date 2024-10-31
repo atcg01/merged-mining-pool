@@ -29,13 +29,13 @@ func miningNotify(work bitcoin.Work) stratumRequest {
 	return request
 }
 
-func miningSetExtranonce(extranonce string) stratumRequest {
-	var request stratumRequest
+// func miningSetExtranonce(extranonce string) stratumRequest {
+// 	var request stratumRequest
+// 	utils.LogInfo("miningSetExtranonce TODO", extranonce)
+// 	// TODO build request; I need a better example
 
-	// TODO build request; I need a better example
-
-	return request
-}
+// 	return request
+// }
 
 func miningSetDifficulty(difficulty float64) stratumRequest {
 	var request stratumRequest

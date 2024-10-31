@@ -133,7 +133,6 @@ func (r *RPCClient) CreateAuxBlock(rewardAddress string) (json.RawMessage, error
 	if status != 200 {
 		return json.RawMessage{}, handleHttpError(resp, status)
 	}
-
 	return resp.Result, nil
 }
 
@@ -256,9 +255,10 @@ func (r *RPCClient) SubmitAuxBlock(auxBlockHash string, primaryAuxPow string) (b
 		return false, err
 	}
 	result := string(resp.Result)
+	// utils.LogInfof("%+v - resp.Result: %s", resp, result)
 	if status != 200 || result != "true" {
-		m := "HTTP (%v) %v error-msg: %v"
-		m = fmt.Sprintf(m, status, result, resp.Error.Message)
+		m := "HTTP (%v) %v error-msg: %+v"
+		m = fmt.Sprintf(m, status, result, resp.Error)
 		return false, errors.New(m)
 	}
 

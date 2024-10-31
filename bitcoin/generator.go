@@ -16,7 +16,7 @@ type BlockGenerator interface {
 
 var jobCounter int
 
-func GenerateWork(template *Template, auxBlock *AuxBlock, chainName, arbitrary, poolPayoutPubScriptKey string, reservedArbitraryByteLength int) (*BitcoinBlock, Work, error) { // On trigger
+func GenerateWork(template *Template, auxBlock *AuxBlock, aux2Block *AuxBlock, chainName, arbitrary, poolPayoutPubScriptKey string, reservedArbitraryByteLength int) (*BitcoinBlock, Work, error) { // On trigger
 	if template == nil {
 		return nil, nil, errors.New("Template cannot be null")
 	}

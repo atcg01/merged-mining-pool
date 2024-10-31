@@ -9,41 +9,53 @@ import (
 
 	"designs.capital/dogepool/bitcoin"
 	"designs.capital/dogepool/persistence"
+	"designs.capital/dogepool/utils"
 )
 
 // Main INPUT
 func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
 	var block *bitcoin.BitcoinBlock
 	var err error
-	template, auxblock, err := p.fetchAllBlockTemplatesFromRPC()
+	template, aux1block, aux2block, err := p.fetchAllBlockTemplatesFromRPC()
 	if err != nil {
 		// Switch nodes if we fail to get work
 		err = p.CheckAndRecoverRPCs()
 		if err != nil {
 			return err
 		}
-		template, auxblock, err = p.fetchAllBlockTemplatesFromRPC()
+		template, aux1block, aux2block, err = p.fetchAllBlockTemplatesFromRPC()
 		if err != nil {
 			return err
 		}
 	}
+	// utils.LogInfof("%+v, %+v, %+v", template, auxblock, aux2block)
+	p.templates.AuxBlocks = make([]bitcoin.AuxBlock, 0)
 
 	auxillary := p.config.BlockSignature
-	if auxblock != nil {
-		mergedPOW := auxblock.GetWork()
-		auxillary = auxillary + hexStringToByteString(mergedPOW)
+	if aux1block != nil {
+		// mergedPOW := aux1block.GetWork()
+		// auxillary = auxillary + hexStringToByteString(mergedPOW)
 
-		p.templates.AuxBlocks = []bitcoin.AuxBlock{*auxblock}
+		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux1block)
 	}
+
+	if aux2block != nil {
+		// mergedPOW := aux2block.GetWork()
+		// auxillary = hexStringToByteString(mergedPOW)
+
+		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux2block)
+	}
+	mergedMiningHeader := "fabe6d6d"
+	mergedMiningTrailer := "010000000000000000002632"
+	mergedPOW := mergedMiningHeader + aux1block.Hash + "fa" + aux2block.Hash + mergedMiningTrailer
+	auxillary = auxillary + hexStringToByteString(mergedPOW)
 
 	primaryName := p.config.GetPrimary()
 	// TODO this is chain/bitcoin specific
 	rewardPubScriptKey := p.GetPrimaryNode().RewardPubScriptKey
 	extranonceByteReservationLength := 8
 
-	block, p.workCache, err = bitcoin.GenerateWork(&template, auxblock,
-		primaryName, auxillary, rewardPubScriptKey,
-		extranonceByteReservationLength)
+	block, p.workCache, err = bitcoin.GenerateWork(&template, aux1block, aux2block, primaryName, auxillary, rewardPubScriptKey, extranonceByteReservationLength)
 	if err != nil {
 		log.Print(err)
 	}
@@ -59,7 +71,8 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 	if primaryBlockTemplate.Template == nil {
 		return errors.New("primary block template not yet set")
 	}
-	auxBlock := p.templates.GetAux1()
+	aux1Block := p.templates.GetAuxN(1)
+	aux2Block := p.templates.GetAuxN(2)
 
 	var err error
 
@@ -88,13 +101,21 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 		return err
 	}
 
-	shareStatus, shareDifficulty := validateAndWeighShare(&primaryBlockTemplate, auxBlock, p.config.PoolDifficulty)
+	shareStatus, shareDifficulty := validateAndWeighShare(&primaryBlockTemplate, aux1Block, aux2Block, p.config.PoolDifficulty)
 
 	heightMessage := fmt.Sprintf("%s:%v", p.config.BlockChainOrder[0], primaryBlockHeight)
-	if shareStatus == dualCandidate {
-		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[0], auxBlock.Height)
+	if shareStatus == paux1Candidate {
+		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[1], aux1Block.Height)
+	} else if shareStatus == paux2Candidate {
+		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[2], aux2Block.Height)
 	} else if shareStatus == aux1Candidate {
-		heightMessage = fmt.Sprintf("%s:%v", p.config.BlockChainOrder[0], auxBlock.Height)
+		heightMessage = fmt.Sprintf("%s:%v", p.config.BlockChainOrder[1], aux1Block.Height)
+	} else if shareStatus == aux2Candidate {
+		heightMessage = fmt.Sprintf("%s:%v", p.config.BlockChainOrder[2], aux2Block.Height)
+	} else if shareStatus == aux12Candidate {
+		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[1], aux1Block.Height, p.config.BlockChainOrder[2], aux2Block.Height)
+	} else if shareStatus == tripleCandidate {
+		heightMessage = fmt.Sprintf("----- %s:%v, %s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[1], aux1Block.Height, p.config.BlockChainOrder[2], aux2Block.Height)
 	}
 
 	if shareStatus == shareInvalid {
@@ -105,7 +126,7 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 
 	m := "Valid share for block %v from %v [%v] [%v/%v]"
 	m = fmt.Sprintf(m, heightMessage, client.ip, rigID, shareDifficulty, p.config.PoolDifficulty)
-	log.Println(m)
+	utils.LogInfo(m)
 
 	blockTarget := bitcoin.Target(primaryBlockTemplate.Template.Target)
 	blockDifficulty, _ := blockTarget.ToDifficulty()
@@ -134,7 +155,7 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 
 	m = "%v block candidate for block %v from %v [%v]"
 	m = fmt.Sprintf(m, statusReadable, heightMessage, client.ip, rigID)
-	log.Println(m)
+	utils.LogInfo(m)
 
 	found := persistence.Found{
 		PoolID:               p.config.PoolName,
@@ -145,86 +166,117 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 		Source:               "",
 	}
 
-	aux1Name := p.config.GetAux1()
-	if aux1Name != "" && shareStatus >= aux1Candidate {
-		err = p.submitAuxBlock(primaryBlockTemplate, *auxBlock)
-		if err != nil {
-			// Try to submit on different node
-			err = p.rpcManagers[p.config.GetAux1()].CheckAndRecoverRPCs()
-			if err != nil {
-				return err
-			}
-			err = p.submitBlockToChain(primaryBlockTemplate)
-		}
+	prefix := ""
 
+	aux1Name := p.config.GetAuxN(1)
+	if shareStatus == aux1Candidate || shareStatus == aux12Candidate || shareStatus == paux1Candidate || shareStatus == tripleCandidate {
+		err = p.submitAuxBlock(1, primaryBlockTemplate, *aux1Block)
 		if err != nil {
-			log.Println(err)
+			// XXX NICO TODO HANDLE
+			utils.LogInfo("!!!! ERROR AUX1 submit", err)
 		} else {
 			// EnrichShare
-			aux1Target := bitcoin.Target(reverseHexBytes(auxBlock.Target))
+			aux1Target := bitcoin.Target(reverseHexBytes(aux1Block.Target))
 			aux1Difficulty, _ := aux1Target.ToDifficulty()
 			aux1Difficulty = aux1Difficulty * bitcoin.GetChain(aux1Name).ShareMultiplier()
 
 			found.Chain = aux1Name
 			found.Created = time.Now()
-			found.Hash = auxBlock.Hash
+			found.Hash = aux1Block.Hash
 			found.NetworkDifficulty = aux1Difficulty
-			found.BlockHeight = uint(auxBlock.Height)
+			found.BlockHeight = uint(aux1Block.Height)
 			// Likely doesn't exist on your AUX coin API unless you editted the daemon source to return this
-			found.TransactionConfirmationData = reverseHexBytes(auxBlock.CoinbaseHash)
+			found.TransactionConfirmationData = reverseHexBytes(aux1Block.CoinbaseHash)
 
 			err = persistence.Blocks.Insert(found)
 			if err != nil {
-				log.Println(err)
+				utils.LogError(err)
 			}
-
 			successStatus = aux1Candidate
 		}
 	}
 
-	if shareStatus == dualCandidate || shareStatus == primaryCandidate {
-		err = p.submitBlockToChain(primaryBlockTemplate)
-		if err != nil {
-			// Try to submit on different node
-			err = p.rpcManagers[p.config.GetPrimary()].CheckAndRecoverRPCs()
-			if err != nil {
-				return err
-			}
-			err = p.submitBlockToChain(primaryBlockTemplate)
-		}
+	aux2Name := p.config.GetAuxN(2)
 
+	if shareStatus == aux2Candidate || shareStatus == aux12Candidate || shareStatus == paux2Candidate || shareStatus == tripleCandidate {
+		err = p.submitAuxBlock(2, primaryBlockTemplate, *aux2Block)
 		if err != nil {
-			return err
+			// XXX NICO TODO HANDLE
+			utils.LogInfo("!!!! ERROR AUX2 submit", err)
 		} else {
-			found.Chain = p.config.GetPrimary()
-			found.Created = time.Now()
-			found.Hash, err = primaryBlockTemplate.HeaderHashed()
-			if err != nil {
-				log.Println(err)
-			}
-			found.NetworkDifficulty = blockDifficulty
-			found.BlockHeight = primaryBlockHeight
-			found.TransactionConfirmationData, err = primaryBlockTemplate.CoinbaseHashed()
-			if err != nil {
-				log.Println(err)
-			}
+			// EnrichShare
+			aux2Target := bitcoin.Target(reverseHexBytes(aux2Block.Target))
+			aux2Difficulty, _ := aux2Target.ToDifficulty()
+			aux2Difficulty = aux2Difficulty * bitcoin.GetChain(aux2Name).ShareMultiplier()
 
+			found.Chain = aux2Name
+			found.Created = time.Now()
+			found.Hash = aux2Block.Hash
+			found.NetworkDifficulty = aux2Difficulty
+			found.BlockHeight = uint(aux2Block.Height)
+			// Likely doesn't exist on your AUX coin API unless you editted the daemon source to return this
+			found.TransactionConfirmationData = reverseHexBytes(aux2Block.CoinbaseHash)
+			// utils.LogInfof("%+v", found)
 			err = persistence.Blocks.Insert(found)
 			if err != nil {
-				log.Println(err)
+				utils.LogError(err)
 			}
-			found.Chain = ""
+
 			if successStatus == aux1Candidate {
-				successStatus = dualCandidate
+				prefix = "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+				successStatus = aux12Candidate
 			} else {
-				successStatus = primaryCandidate
+				successStatus = aux2Candidate
 			}
+		}
+	}
+
+	if shareStatus == primaryCandidate || shareStatus == paux1Candidate || shareStatus == paux2Candidate || shareStatus == tripleCandidate {
+		err = p.submitBlockToChain(primaryBlockTemplate)
+		// if err != nil {
+		// Try to submit on different node
+		// err = p.rpcManagers[p.config.GetPrimary()].CheckAndRecoverRPCs()
+		if err != nil {
+			return err
+		}
+		// err = p.submitBlockToChain(primaryBlockTemplate)
+		// }
+
+		found.Chain = p.config.GetPrimary()
+		found.Created = time.Now()
+		found.Hash, err = primaryBlockTemplate.HeaderHashed()
+		if err != nil {
+			utils.LogError(err)
+		}
+		found.NetworkDifficulty = blockDifficulty
+		found.BlockHeight = primaryBlockHeight
+		found.TransactionConfirmationData, err = primaryBlockTemplate.CoinbaseHashed()
+		if err != nil {
+			utils.LogError(err)
+		}
+
+		err = persistence.Blocks.Insert(found)
+		if err != nil {
+			utils.LogError(err)
+		}
+		found.Chain = ""
+		if successStatus == aux1Candidate {
+			prefix = "####################################"
+			successStatus = paux1Candidate
+		} else if successStatus == aux2Candidate {
+			prefix = "####################################"
+			successStatus = paux2Candidate
+		} else if successStatus == aux12Candidate {
+			prefix = "))))))))))))))))))))))))))))!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!####################################"
+			successStatus = tripleCandidate
+		} else {
+			successStatus = primaryCandidate
 		}
 	}
 
 	statusReadable = statusMap[successStatus]
 
-	log.Printf("✅  Successful %v submission of block %v from: %v [%v]", statusReadable, heightMessage, client.ip, rigID)
+	utils.LogInfof("✅ %s Successful %v submission of block %v from: %v [%v]", prefix, statusReadable, heightMessage, client.ip, rigID)
 
 	return nil
 }
