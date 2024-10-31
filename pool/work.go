@@ -18,7 +18,7 @@ func cbi(firstHash, secondHash string) string {
 	firstBytes, _ := hex.DecodeString(firstHash)
 	secondBytes, _ := hex.DecodeString(secondHash)
 
-	coinbaseInitial := fmt.Sprintf("fabe6d6d%s010000000000000000002632%s010000000000", hex.EncodeToString(firstBytes[:32]), hex.EncodeToString(secondBytes))
+	coinbaseInitial := fmt.Sprintf("fabe6d6d%s01002632fabe6d6d%s01002632", hex.EncodeToString(firstBytes[:32]), hex.EncodeToString(secondBytes[:32]))
 	// coinbaseInitial := fmt.Sprintf("fabe6d6d%s010000000000000000002632", dogecoinHash)
 
 	return coinbaseInitial
@@ -57,7 +57,9 @@ func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
 
 		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux2block)
 	}
+
 	mergedPOW := cbi(aux1block.Hash, aux2block.Hash)
+	utils.LogInfof("%+v", mergedPOW)
 	auxillary = auxillary + hexStringToByteString(mergedPOW)
 
 	primaryName := p.config.GetPrimary()

@@ -25,3 +25,7 @@ func (b *BitcoinBlock) init(chain Blockchain) {
 	}
 	b.chain = chain
 }
+
+func (b *BitcoinBlock) MakeCoinbase(auxBlock AuxBlock) string {
+	return ""
+}
