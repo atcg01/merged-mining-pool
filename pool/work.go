@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -11,6 +12,17 @@ import (
 	"designs.capital/dogepool/persistence"
 	"designs.capital/dogepool/utils"
 )
+
+func cbi(firstHash, secondHash string) string {
+
+	firstBytes, _ := hex.DecodeString(firstHash)
+	secondBytes, _ := hex.DecodeString(secondHash)
+
+	coinbaseInitial := fmt.Sprintf("fabe6d6d%s010000000000000000002632%s010000000000", hex.EncodeToString(firstBytes[:32]), hex.EncodeToString(secondBytes))
+	// coinbaseInitial := fmt.Sprintf("fabe6d6d%s010000000000000000002632", dogecoinHash)
+
+	return coinbaseInitial
+}
 
 // Main INPUT
 func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
@@ -45,9 +57,7 @@ func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
 
 		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux2block)
 	}
-	mergedMiningHeader := "fabe6d6d"
-	mergedMiningTrailer := "010000000000000000002632"
-	mergedPOW := mergedMiningHeader + aux1block.Hash + "fa" + aux2block.Hash + mergedMiningTrailer
+	mergedPOW := cbi(aux1block.Hash, aux2block.Hash)
 	auxillary = auxillary + hexStringToByteString(mergedPOW)
 
 	primaryName := p.config.GetPrimary()

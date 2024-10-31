@@ -33,6 +33,10 @@ func GenerateWork(template *Template, auxBlock *AuxBlock, aux2Block *AuxBlock, c
 		return nil, nil, errors.New(m)
 	}
 
+	// arbitraryBytes := bytesWithLengthHeader([]byte(arbitrary))
+	// arbitraryByteLength := uint(len(arbitraryBytes) + reservedArbitraryByteLength)
+	// arbitraryHex := hex.EncodeToString(arbitraryBytes)
+
 	arbitraryBytes := bytesWithLengthHeader([]byte(arbitrary))
 	arbitraryByteLength := uint(len(arbitraryBytes) + reservedArbitraryByteLength)
 	arbitraryHex := hex.EncodeToString(arbitraryBytes)
