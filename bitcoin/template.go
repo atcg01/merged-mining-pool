@@ -17,4 +17,5 @@ type Template struct {
 	Transactions             []Transaction `json:"transactions"`
 	CurrentTime              uint          `json:"curtime"`
 	MimbleWimble             string        `json:"mweb"`
+	AuxBlocks                []*AuxBlock
 }

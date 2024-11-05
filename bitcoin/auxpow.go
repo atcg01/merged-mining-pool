@@ -8,7 +8,7 @@ type AuxPow struct {
 	ParentHeaderUnhashed string
 }
 
-func MakeAuxPow(parentBlock BitcoinBlock, b AuxBlock, n int) AuxPow {
+func MakeAuxPow(parentBlock BitcoinBlock, n int) AuxPow {
 	if parentBlock.hash == "" {
 		panic("Set parent block hash first")
 	}
@@ -18,7 +18,7 @@ func MakeAuxPow(parentBlock BitcoinBlock, b AuxBlock, n int) AuxPow {
 		ParentCoinbase:       parentBlock.coinbase,
 		ParentHeaderHash:     parentBlock.hash,
 		ParentMerkleBranch:   makeParentMerkleBranch(parentBlock.merkleSteps),
-		auxMerkleBranch:      b.makeAuxChainMerkleBranch(n),
+		auxMerkleBranch:      makeAuxChainMerkleBranch(parentBlock, n),
 		ParentHeaderUnhashed: parentBlock.header,
 	}
 }

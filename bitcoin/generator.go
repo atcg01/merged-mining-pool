@@ -16,7 +16,7 @@ type BlockGenerator interface {
 
 var jobCounter int
 
-func GenerateWork(template *Template, auxBlock *AuxBlock, aux2Block *AuxBlock, chainName, arbitrary, poolPayoutPubScriptKey string, reservedArbitraryByteLength int) (*BitcoinBlock, Work, error) { // On trigger
+func GenerateWork(template *Template, chainName, arbitrary, poolPayoutPubScriptKey string, reservedArbitraryByteLength int) (*BitcoinBlock, Work, error) { // On trigger
 	if template == nil {
 		return nil, nil, errors.New("Template cannot be null")
 	}
@@ -32,10 +32,6 @@ func GenerateWork(template *Template, auxBlock *AuxBlock, aux2Block *AuxBlock, c
 		m := "invalid previous block hash hex: " + err.Error()
 		return nil, nil, errors.New(m)
 	}
-
-	// arbitraryBytes := bytesWithLengthHeader([]byte(arbitrary))
-	// arbitraryByteLength := uint(len(arbitraryBytes) + reservedArbitraryByteLength)
-	// arbitraryHex := hex.EncodeToString(arbitraryBytes)
 
 	arbitraryBytes := bytesWithLengthHeader([]byte(arbitrary))
 	arbitraryByteLength := uint(len(arbitraryBytes) + reservedArbitraryByteLength)

@@ -11,7 +11,6 @@ import (
 	"designs.capital/dogepool/config"
 	"designs.capital/dogepool/persistence"
 	"designs.capital/dogepool/rpc"
-	"designs.capital/dogepool/utils"
 )
 
 type PoolServer struct {
@@ -50,8 +49,7 @@ func (pool *PoolServer) Start() {
 	pool.startBufferManager()
 
 	amountOfChains := len(pool.config.BlockChainOrder) - 1
-	utils.LogInfo("Nb aux chain", amountOfChains)
-	pool.templates.AuxBlocks = make([]bitcoin.AuxBlock, amountOfChains)
+	pool.templates.AuxBlocks = make([]*bitcoin.AuxBlock, amountOfChains)
 
 	// Initial work creation
 	panicOnError(pool.fetchRpcBlockTemplatesAndCacheWork())
@@ -71,59 +69,50 @@ func (pool *PoolServer) broadcastWork(work bitcoin.Work) {
 	logOnError(err)
 }
 
-func (p *PoolServer) fetchAllBlockTemplatesFromRPC() (bitcoin.Template, *bitcoin.AuxBlock, *bitcoin.AuxBlock, error) {
+func (p *PoolServer) fetchAllBlockTemplatesFromRPC() (bitcoin.Template, []*bitcoin.AuxBlock, error) {
 	var template bitcoin.Template
 	var err error
 	response, err := p.GetPrimaryNode().RPC.GetBlockTemplate()
 	if err != nil {
-		return template, nil, nil, errors.New("RPC error: " + err.Error())
+		return template, nil, errors.New("RPC error: " + err.Error())
 	}
 
 	err = json.Unmarshal(response, &template)
 	if err != nil {
-		return template, nil, nil, err
+		return template, nil, err
 	}
 	// utils.LogInfof("Fetch primary block %+v", template)
 
-	var aux1Block bitcoin.AuxBlock
-	if p.config.GetAuxN(1) != "" {
-		response, err = p.GetAuxNNode(1).RPC.CreateAuxBlock(p.GetAuxNNode(1).RewardTo)
-		if err != nil {
-			log.Println("No aux1 block found: " + err.Error())
-			return template, nil, nil, nil
-		}
+	auxblocks := make([]*bitcoin.AuxBlock, 0)
+	for i, chainName := range p.config.BlockChainOrder {
+		if i == 0 {
+			continue
+		} else {
+			var auxBlock bitcoin.AuxBlock
+			if p.config.GetAuxN(1) != "" {
+				response, err = p.GetAuxNNode(i).RPC.CreateAuxBlock(p.GetAuxNNode(i).RewardTo)
+				if err != nil {
+					log.Printf("No aux %s block found: %s", chainName, err.Error())
+					return template, nil, nil
+				}
 
-		err = json.Unmarshal(response, &aux1Block)
-		if err != nil {
-			return template, nil, nil, err
+				err = json.Unmarshal(response, &auxBlock)
+				if err != nil {
+					return template, nil, err
+				}
+				if len(auxBlock.Target2) > 0 {
+					auxBlock.Target = auxBlock.Target2
+				}
+				// utils.LogInfof("Aux1 %+v", auxBlock)
+				auxblocks = append(auxblocks, &auxBlock)
+			}
 		}
-		if len(aux1Block.Target2) > 0 {
-			aux1Block.Target = aux1Block.Target2
-		}
-		// utils.LogInfof("Aux1 %+v", auxBlock)
 	}
 
-	var aux2Block bitcoin.AuxBlock
-	if p.config.GetAuxN(2) != "" {
-		response, err = p.GetAuxNNode(2).RPC.CreateAuxBlock(p.GetAuxNNode(2).RewardTo)
-		if err != nil {
-			log.Println("No aux block2 found: " + err.Error())
-			return template, nil, nil, nil
-		}
-
-		err = json.Unmarshal(response, &aux2Block)
-		if err != nil {
-			return template, nil, nil, err
-		}
-		if len(aux2Block.Target2) > 0 {
-			aux2Block.Target = aux2Block.Target2
-		}
-		// utils.LogInfof("Aux2 %+v", aux2Block)
-	}
-	utils.LogInfof("priH:%d, aux1H %s:%d, aux2H %s:%d", template.Height, p.GetAuxNNode(1).ChainName, aux1Block.Height, p.GetAuxNNode(2).ChainName, aux2Block.Height)
+	// utils.LogInfof("priH:%d, aux1H %s:%d, aux2H %s:%d", template.Height, p.GetAuxNNode(1).ChainName, aux1Block.Height, p.GetAuxNNode(2).ChainName, aux2Block.Height)
 	// utils.LogInfof("%+v", aux1Block)
 	// utils.LogInfof("%+v", aux2Block)
-	return template, &aux1Block, &aux2Block, nil
+	return template, auxblocks, nil
 }
 
 func notifyAllSessions(request stratumRequest) error {

@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -19,44 +18,20 @@ import (
 const magic = "\xfa\xbe\x6d\x6d"
 
 // Function to create the coinbase transaction for merged mining
-func createMergedMiningCoinbase(dogeBlockHash, bellsBlockHash string, chainIDs []int32, merkleNonce int32) ([]byte, []byte, error) {
-	dogeHash, err := hex.DecodeString(dogeBlockHash)
-	if err != nil {
-		return nil, nil, err
-	}
-	bellsHash, err := hex.DecodeString(bellsBlockHash)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Assume merkle_size is a power of 2
-	var merkleSize int32 = 2
-	slots := make([][]byte, merkleSize)
-
-	// Insert Dogecoin block hash
-	chainID := chainIDs[0]
-	// slotNum := calculateSlotNum(merkleNonce, chainID, merkleSize)
-	slots[chainID] = utils.ReverseBytes(dogeHash)
-
-	// Insert Bellscoin block hash
-	chainID = chainIDs[1]
-	// slotNum = calculateSlotNum(merkleNonce, chainID, merkleSize)
-	slots[chainID] = utils.ReverseBytes(bellsHash)
-
-	// Fill unused slots with arbitrary data (e.g., zeros)
-	for i := range slots {
-		if slots[i] == nil {
-			slots[i] = make([]byte, 32) // Fill with 32 bytes of zeros
-		}
-	}
+func createMergedMiningCoinbase(auxblocks []*bitcoin.AuxBlock, merkleNonce int32) (string, error) {
+	merkleSize := 4
+	// merkleSize := len(auxblocks)
+	// if merkleSize%2 == 1 { // Assume merkle_size is a power of 2
+	// 	merkleSize = merkleSize + 1
+	// }
 
 	// Build the Merkle Tree
-	merkleRoot, merkleBranch := buildMerkleRoot(slots)
+	merkleRoot, _ := buildMerkleRoot(merkleSize, auxblocks)
 
 	// Create coinbase scriptSig
-	scriptSig := createScriptSig(merkleNonce, merkleSize, merkleRoot)
+	scriptSig := createScriptSig(merkleNonce, int32(merkleSize), merkleRoot)
 
-	return scriptSig, merkleBranch, nil
+	return hex.EncodeToString(scriptSig), nil
 }
 
 // Calculate the slot number based on the provided nonce and chain ID
@@ -65,11 +40,29 @@ func createMergedMiningCoinbase(dogeBlockHash, bellsBlockHash string, chainIDs [
 // }
 
 // Build the Merkle Root from the slots
-func buildMerkleRoot(hashes [][]byte) ([]byte, []byte) {
+func buildMerkleRoot(merkleSize int, auxblocks []*bitcoin.AuxBlock) ([]byte, error) {
+
+	slots := make([][]byte, merkleSize)
+
+	for i, auxblock := range auxblocks {
+		hash, err := hex.DecodeString(auxblock.Hash)
+		if err != nil {
+			return nil, err
+		}
+		slots[i+1] = utils.ReverseBytes(hash)
+	}
+
+	// Fill unused slots with arbitrary data (e.g., zeros)
+	for i := range slots {
+		if slots[i] == nil {
+			slots[i] = make([]byte, 32) // Fill with 32 bytes of zeros
+		}
+	}
+
 	var currentLevel [][]byte
 
 	// Add non-nil hashes to the current level
-	for _, hash := range hashes {
+	for _, hash := range slots {
 		if hash != nil {
 			currentLevel = append(currentLevel, hash)
 		}
@@ -86,19 +79,12 @@ func buildMerkleRoot(hashes [][]byte) ([]byte, []byte) {
 			} else {
 				right = left // Duplicate if odd number of hashes
 			}
-			newHash := doubleSHA256(append(left, right...))
+			newHash := utils.DoubleSHA256(append(left, right...))
 			newLevel = append(newLevel, newHash)
 		}
 		currentLevel = newLevel
 	}
 	return currentLevel[0], nil
-}
-
-// Double SHA-256 hash function
-func doubleSHA256(data []byte) []byte {
-	hash1 := sha256.Sum256(data)
-	hash2 := sha256.Sum256(hash1[:])
-	return hash2[:]
 }
 
 // Create the coinbase scriptSig
@@ -109,6 +95,8 @@ func createScriptSig(merkleNonce, merkleSize int32, merkleRoot []byte) []byte {
 	scriptSig = append(scriptSig, reversedMerkleRoot...)
 	scriptSig = append(scriptSig, int32ToBytes(merkleSize)...)
 	scriptSig = append(scriptSig, int32ToBytes(merkleNonce)...)
+	parentChainId, _ := hex.DecodeString("00002632")
+	scriptSig = append(scriptSig, parentChainId...)
 	return scriptSig
 }
 
@@ -119,75 +107,38 @@ func int32ToBytes(i int32) []byte {
 	return b
 }
 
-// Main function for testing
-func cbi(firstHash, secondHash string) (string, []byte) {
-	chainIDs := []int32{0, 1} // IDs des chaînes auxiliaires
-
-	scriptSig, merkleBranch, err := createMergedMiningCoinbase(firstHash, secondHash, chainIDs, 0)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return "", nil
-	}
-
-	return hex.EncodeToString(scriptSig), merkleBranch
-}
-
-// func cbi2(firstHash, secondHash string) string {
-
-// 	// firstBytes, _ := hex.DecodeString(firstHash)
-// 	// secondBytes, _ := hex.DecodeString(secondHash)
-
-// 	// coinbaseInitial := fmt.Sprintf("0100000002%s%s", hex.EncodeToString(firstBytes[:32]), hex.EncodeToString(secondBytes[:32]))
-// 	coinbaseInitial := fmt.Sprintf("fabe6d6d%s0200000000000000", cbi2(firstHash, secondHash))
-// 	// coinbaseInitial := fmt.Sprintf("fabe6d6d%s010000000000000000002632", cbi2(firstHash, secondHash))
-
-// 	return coinbaseInitial
-// }
-
 // Main INPUT
 func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
 	var block *bitcoin.BitcoinBlock
 	var err error
-	template, aux1block, aux2block, err := p.fetchAllBlockTemplatesFromRPC()
+	template, auxblocks, err := p.fetchAllBlockTemplatesFromRPC()
 	if err != nil {
 		// Switch nodes if we fail to get work
 		err = p.CheckAndRecoverRPCs()
 		if err != nil {
 			return err
 		}
-		template, aux1block, aux2block, err = p.fetchAllBlockTemplatesFromRPC()
+		template, auxblocks, err = p.fetchAllBlockTemplatesFromRPC()
 		if err != nil {
 			return err
 		}
 	}
 	// utils.LogInfof("%+v, %+v, %+v", template, auxblock, aux2block)
-	p.templates.AuxBlocks = make([]bitcoin.AuxBlock, 0)
-
+	p.templates.AuxBlocks = auxblocks
 	auxillary := p.config.BlockSignature
-	if aux1block != nil {
-		// mergedPOW := aux1block.GetWork()
-		// auxillary = auxillary + hexStringToByteString(mergedPOW)
-		aux1block.OtherHash = aux2block.Hash
-		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux1block)
+	template.AuxBlocks = auxblocks
+	scriptSig, err := createMergedMiningCoinbase(auxblocks, 0)
+	if err != nil {
+		return err
 	}
-
-	if aux2block != nil {
-		// mergedPOW := aux2block.GetWork()
-		// auxillary = hexStringToByteString(mergedPOW)
-
-		aux2block.OtherHash = aux1block.Hash
-		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux2block)
-	}
-
-	mergedPOW, _ := cbi(aux1block.Hash, aux2block.Hash)
-	auxillary = auxillary + hexStringToByteString(mergedPOW)
+	auxillary = auxillary + hexStringToByteString(scriptSig)
 
 	primaryName := p.config.GetPrimary()
 	// TODO this is chain/bitcoin specific
 	rewardPubScriptKey := p.GetPrimaryNode().RewardPubScriptKey
 	extranonceByteReservationLength := 8
 
-	block, p.workCache, err = bitcoin.GenerateWork(&template, aux1block, aux2block, primaryName, auxillary, rewardPubScriptKey, extranonceByteReservationLength)
+	block, p.workCache, err = bitcoin.GenerateWork(&template, primaryName, auxillary, rewardPubScriptKey, extranonceByteReservationLength)
 	if err != nil {
 		log.Print(err)
 	}
@@ -302,7 +253,7 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 
 	aux1Name := p.config.GetAuxN(1)
 	if shareStatus == aux1Candidate || shareStatus == aux12Candidate || shareStatus == paux1Candidate || shareStatus == tripleCandidate {
-		err = p.submitAuxBlock(1, primaryBlockTemplate, *aux1Block)
+		err = p.submitAuxBlock(1, primaryBlockTemplate)
 		if err != nil {
 			// XXX NICO TODO HANDLE
 			utils.LogInfo("!!!! ERROR AUX1 submit", err)
@@ -329,9 +280,8 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 	}
 
 	aux2Name := p.config.GetAuxN(2)
-
 	if shareStatus == aux2Candidate || shareStatus == aux12Candidate || shareStatus == paux2Candidate || shareStatus == tripleCandidate {
-		err = p.submitAuxBlock(2, primaryBlockTemplate, *aux2Block)
+		err = p.submitAuxBlock(2, primaryBlockTemplate)
 		if err != nil {
 			// XXX NICO TODO HANDLE
 			utils.LogInfo("!!!! ERROR AUX2 submit", err)

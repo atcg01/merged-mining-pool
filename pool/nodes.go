@@ -126,9 +126,9 @@ func (p *PoolServer) submitBlockToChain(block bitcoin.BitcoinBlock) error {
 	return nil
 }
 
-func (p *PoolServer) submitAuxBlock(n int, primaryBlock bitcoin.BitcoinBlock, auxBlock bitcoin.AuxBlock) error {
-	auxpow := bitcoin.MakeAuxPow(primaryBlock, auxBlock, n)
-	success, err := p.GetAuxNNode(n).RPC.SubmitAuxBlock(auxBlock.Hash, auxpow.Serialize())
+func (p *PoolServer) submitAuxBlock(n int, primaryBlock bitcoin.BitcoinBlock) error {
+	auxpow := bitcoin.MakeAuxPow(primaryBlock, n)
+	success, err := p.GetAuxNNode(n).RPC.SubmitAuxBlock(primaryBlock.Template.AuxBlocks[n-1].Hash, auxpow.Serialize())
 	// utils.LogInfof("submitAuxBlock %d -> %+v, %t -- %+v", n, p.config.GetAuxN(n), success, err)
 
 	if !success {
