@@ -1,6 +1,8 @@
 package pool
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -13,16 +15,134 @@ import (
 	"designs.capital/dogepool/utils"
 )
 
-func cbi(firstHash, secondHash string) string {
+// Constants for the magic header
+const magic = "\xfa\xbe\x6d\x6d"
 
-	firstBytes, _ := hex.DecodeString(firstHash)
-	secondBytes, _ := hex.DecodeString(secondHash)
+// Function to create the coinbase transaction for merged mining
+func createMergedMiningCoinbase(dogeBlockHash, bellsBlockHash string, chainIDs []int32, merkleNonce int32) ([]byte, []byte, error) {
+	dogeHash, err := hex.DecodeString(dogeBlockHash)
+	if err != nil {
+		return nil, nil, err
+	}
+	bellsHash, err := hex.DecodeString(bellsBlockHash)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	coinbaseInitial := fmt.Sprintf("fabe6d6d%s01002632fabe6d6d%s01002632", hex.EncodeToString(firstBytes[:32]), hex.EncodeToString(secondBytes[:32]))
-	// coinbaseInitial := fmt.Sprintf("fabe6d6d%s010000000000000000002632", dogecoinHash)
+	// Assume merkle_size is a power of 2
+	var merkleSize int32 = 2
+	slots := make([][]byte, merkleSize)
 
-	return coinbaseInitial
+	// Insert Dogecoin block hash
+	chainID := chainIDs[0]
+	// slotNum := calculateSlotNum(merkleNonce, chainID, merkleSize)
+	slots[chainID] = utils.ReverseBytes(dogeHash)
+
+	// Insert Bellscoin block hash
+	chainID = chainIDs[1]
+	// slotNum = calculateSlotNum(merkleNonce, chainID, merkleSize)
+	slots[chainID] = utils.ReverseBytes(bellsHash)
+
+	// Fill unused slots with arbitrary data (e.g., zeros)
+	for i := range slots {
+		if slots[i] == nil {
+			slots[i] = make([]byte, 32) // Fill with 32 bytes of zeros
+		}
+	}
+
+	// Build the Merkle Tree
+	merkleRoot, merkleBranch := buildMerkleRoot(slots)
+
+	// Create coinbase scriptSig
+	scriptSig := createScriptSig(merkleNonce, merkleSize, merkleRoot)
+
+	return scriptSig, merkleBranch, nil
 }
+
+// Calculate the slot number based on the provided nonce and chain ID
+// func calculateSlotNum(merkleNonce, chainID, merkleSize int32) int32 {
+// 	return chainID % merkleSize
+// }
+
+// Build the Merkle Root from the slots
+func buildMerkleRoot(hashes [][]byte) ([]byte, []byte) {
+	var currentLevel [][]byte
+
+	// Add non-nil hashes to the current level
+	for _, hash := range hashes {
+		if hash != nil {
+			currentLevel = append(currentLevel, hash)
+		}
+	}
+
+	// Build the Merkle tree
+	for len(currentLevel) > 1 {
+		var newLevel [][]byte
+		for i := 0; i < len(currentLevel); i += 2 {
+			var left, right []byte
+			left = currentLevel[i]
+			if i+1 < len(currentLevel) {
+				right = currentLevel[i+1]
+			} else {
+				right = left // Duplicate if odd number of hashes
+			}
+			newHash := doubleSHA256(append(left, right...))
+			newLevel = append(newLevel, newHash)
+		}
+		currentLevel = newLevel
+	}
+	return currentLevel[0], nil
+}
+
+// Double SHA-256 hash function
+func doubleSHA256(data []byte) []byte {
+	hash1 := sha256.Sum256(data)
+	hash2 := sha256.Sum256(hash1[:])
+	return hash2[:]
+}
+
+// Create the coinbase scriptSig
+func createScriptSig(merkleNonce, merkleSize int32, merkleRoot []byte) []byte {
+	scriptSig := make([]byte, 0)
+	scriptSig = append(scriptSig, magic...)
+	reversedMerkleRoot := utils.ReverseBytes(merkleRoot)
+	scriptSig = append(scriptSig, reversedMerkleRoot...)
+	scriptSig = append(scriptSig, int32ToBytes(merkleSize)...)
+	scriptSig = append(scriptSig, int32ToBytes(merkleNonce)...)
+	return scriptSig
+}
+
+// Convert int32 to byte array
+func int32ToBytes(i int32) []byte {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, uint32(i))
+	return b
+}
+
+// Main function for testing
+func cbi(firstHash, secondHash string) (string, []byte) {
+	chainIDs := []int32{0, 1} // IDs des chaînes auxiliaires
+
+	scriptSig, merkleBranch, err := createMergedMiningCoinbase(firstHash, secondHash, chainIDs, 0)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return "", nil
+	}
+
+	return hex.EncodeToString(scriptSig), merkleBranch
+}
+
+// func cbi2(firstHash, secondHash string) string {
+
+// 	// firstBytes, _ := hex.DecodeString(firstHash)
+// 	// secondBytes, _ := hex.DecodeString(secondHash)
+
+// 	// coinbaseInitial := fmt.Sprintf("0100000002%s%s", hex.EncodeToString(firstBytes[:32]), hex.EncodeToString(secondBytes[:32]))
+// 	coinbaseInitial := fmt.Sprintf("fabe6d6d%s0200000000000000", cbi2(firstHash, secondHash))
+// 	// coinbaseInitial := fmt.Sprintf("fabe6d6d%s010000000000000000002632", cbi2(firstHash, secondHash))
+
+// 	return coinbaseInitial
+// }
 
 // Main INPUT
 func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
@@ -47,7 +167,7 @@ func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
 	if aux1block != nil {
 		// mergedPOW := aux1block.GetWork()
 		// auxillary = auxillary + hexStringToByteString(mergedPOW)
-
+		aux1block.OtherHash = aux2block.Hash
 		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux1block)
 	}
 
@@ -55,11 +175,11 @@ func (p *PoolServer) fetchRpcBlockTemplatesAndCacheWork() error {
 		// mergedPOW := aux2block.GetWork()
 		// auxillary = hexStringToByteString(mergedPOW)
 
+		aux2block.OtherHash = aux1block.Hash
 		p.templates.AuxBlocks = append(p.templates.AuxBlocks, *aux2block)
 	}
 
-	mergedPOW := cbi(aux1block.Hash, aux2block.Hash)
-	utils.LogInfof("%+v", mergedPOW)
+	mergedPOW, _ := cbi(aux1block.Hash, aux2block.Hash)
 	auxillary = auxillary + hexStringToByteString(mergedPOW)
 
 	primaryName := p.config.GetPrimary()

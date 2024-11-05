@@ -111,54 +111,54 @@ func (t *Template) coinbaseTransactionOutputs(poolPubScriptKey string) (uint, st
 	return outputsCount, outputs
 }
 
-func debugCoinbaseOutput(cb *Coinbase) {
-	fmt.Println()
-	fmt.Println("**Coinbase Parts**")
-	fmt.Println()
-	fmt.Println("Initial", cb.CoinbaseInital)
-	fmt.Println("Arbitrary", cb.Arbitrary)
-	fmt.Println("Final", cb.CoinbaseFinal)
-	fmt.Println()
-	fmt.Println("Coinbase", cb.CoinbaseInital+cb.Arbitrary+cb.CoinbaseFinal)
-	fmt.Println()
-}
+// func debugCoinbaseOutput(cb *Coinbase) {
+// 	fmt.Println()
+// 	fmt.Println("**Coinbase Parts**")
+// 	fmt.Println()
+// 	fmt.Println("Initial", cb.CoinbaseInital)
+// 	fmt.Println("Arbitrary", cb.Arbitrary)
+// 	fmt.Println("Final", cb.CoinbaseFinal)
+// 	fmt.Println()
+// 	fmt.Println("Coinbase", cb.CoinbaseInital+cb.Arbitrary+cb.CoinbaseFinal)
+// 	fmt.Println()
+// }
 
-func debugCoinbaseInitialOutput(i CoinbaseInital) {
-	fmt.Println()
-	fmt.Println("🧐 Coinbase Initial Parts ➔ ➔ ➔ ➔")
-	fmt.Println()
-	fmt.Println("Version", i.Version)
-	fmt.Println("NumberOfInputs", i.NumberOfInputs)
-	fmt.Println("PreviousOutputTransactionID", i.PreviousOutputTransactionID)
-	fmt.Println("PreviousOutputIndex", i.PreviousOutputIndex)
-	fmt.Println("BytesInArbitrary", i.BytesInArbitrary)
-	fmt.Println("BytesInHeight", i.BytesInHeight)
-	fmt.Println("HeightHex", i.HeightHex)
-	fmt.Println()
-	cbI := i.Version +
-		i.NumberOfInputs +
-		i.PreviousOutputTransactionID +
-		i.PreviousOutputIndex +
-		varUint(i.BytesInArbitrary) +
-		varUint(i.BytesInHeight) +
-		i.HeightHex
-	fmt.Println("Coinbase Initial", cbI)
-	fmt.Println()
-}
+// func debugCoinbaseInitialOutput(i CoinbaseInital) {
+// 	fmt.Println()
+// 	fmt.Println("🧐 Coinbase Initial Parts ➔ ➔ ➔ ➔")
+// 	fmt.Println()
+// 	fmt.Println("Version", i.Version)
+// 	fmt.Println("NumberOfInputs", i.NumberOfInputs)
+// 	fmt.Println("PreviousOutputTransactionID", i.PreviousOutputTransactionID)
+// 	fmt.Println("PreviousOutputIndex", i.PreviousOutputIndex)
+// 	fmt.Println("BytesInArbitrary", i.BytesInArbitrary)
+// 	fmt.Println("BytesInHeight", i.BytesInHeight)
+// 	fmt.Println("HeightHex", i.HeightHex)
+// 	fmt.Println()
+// 	cbI := i.Version +
+// 		i.NumberOfInputs +
+// 		i.PreviousOutputTransactionID +
+// 		i.PreviousOutputIndex +
+// 		varUint(i.BytesInArbitrary) +
+// 		varUint(i.BytesInHeight) +
+// 		i.HeightHex
+// 	fmt.Println("Coinbase Initial", cbI)
+// 	fmt.Println()
+// }
 
-func debugCoinbaseFinalOutput(f CoinbaseFinal) {
-	fmt.Println()
-	fmt.Println("➔ ➔ ➔ ➔ Coinbase Final Parts**")
-	fmt.Println()
-	fmt.Println("TransactionInSequence", f.TransactionInSequence)
-	fmt.Println("OutputCount", f.OutputCount)
-	fmt.Println("TxOuts", f.TxOuts)
-	fmt.Println("TransactionLockTime", f.TransactionLockTime)
-	fmt.Println()
-	cbf := f.TransactionInSequence +
-		varUint(f.OutputCount) +
-		f.TxOuts +
-		f.TransactionLockTime
-	fmt.Println("Coinbase Final", cbf)
-	fmt.Println()
-}
+// func debugCoinbaseFinalOutput(f CoinbaseFinal) {
+// 	fmt.Println()
+// 	fmt.Println("➔ ➔ ➔ ➔ Coinbase Final Parts**")
+// 	fmt.Println()
+// 	fmt.Println("TransactionInSequence", f.TransactionInSequence)
+// 	fmt.Println("OutputCount", f.OutputCount)
+// 	fmt.Println("TxOuts", f.TxOuts)
+// 	fmt.Println("TransactionLockTime", f.TransactionLockTime)
+// 	fmt.Println()
+// 	cbf := f.TransactionInSequence +
+// 		varUint(f.OutputCount) +
+// 		f.TxOuts +
+// 		f.TransactionLockTime
+// 	fmt.Println("Coinbase Final", cbf)
+// 	fmt.Println()
+// }

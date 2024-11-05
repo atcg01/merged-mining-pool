@@ -1,9 +1,5 @@
 package bitcoin
 
-import (
-	"fmt"
-)
-
 type Submission struct {
 	Header            string
 	TransactionCount  string
@@ -43,15 +39,15 @@ func (b *BitcoinBlock) buildTransactionBuffer() string {
 	return buffer
 }
 
-func submissionDebugOutput(header, transactionCount, coinbase, transactionBuffer, submission string) {
-	fmt.Println()
-	fmt.Println("**😱SUBMISSION PARTS😱**")
-	fmt.Println()
-	fmt.Println("Header", header)
-	fmt.Println("TransactionCount", transactionCount)
-	fmt.Println("Coinbase", coinbase)
-	fmt.Println("TransactionBuffer", transactionBuffer)
-	fmt.Println()
-	fmt.Println("Submission", submission)
-	fmt.Println()
-}
+// func submissionDebugOutput(header, transactionCount, coinbase, transactionBuffer, submission string) {
+// 	fmt.Println()
+// 	fmt.Println("**😱SUBMISSION PARTS😱**")
+// 	fmt.Println()
+// 	fmt.Println("Header", header)
+// 	fmt.Println("TransactionCount", transactionCount)
+// 	fmt.Println("Coinbase", coinbase)
+// 	fmt.Println("TransactionBuffer", transactionBuffer)
+// 	fmt.Println()
+// 	fmt.Println("Submission", submission)
+// 	fmt.Println()
+// }

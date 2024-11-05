@@ -164,17 +164,17 @@ func (b *BitcoinBlock) Submit() (string, error) {
 	return submission, nil
 }
 
-func debugMerkleSteps(block BitcoinBlock) {
-	fmt.Println()
-	fmt.Println("Transaction IDs")
-	for i, transaction := range block.Template.Transactions {
-		fmt.Println(i+1, transaction.ID, " : ", transaction.Data)
-	}
+// func debugMerkleSteps(block BitcoinBlock) {
+// 	fmt.Println()
+// 	fmt.Println("Transaction IDs")
+// 	for i, transaction := range block.Template.Transactions {
+// 		fmt.Println(i+1, transaction.ID, " : ", transaction.Data)
+// 	}
 
-	fmt.Println()
-	fmt.Println("Steps")
-	for i, step := range block.merkleSteps {
-		fmt.Println(i+1, step)
-	}
-	fmt.Println()
-}
+// 	fmt.Println()
+// 	fmt.Println("Steps")
+// 	for i, step := range block.merkleSteps {
+// 		fmt.Println(i+1, step)
+// 	}
+// 	fmt.Println()
+// }

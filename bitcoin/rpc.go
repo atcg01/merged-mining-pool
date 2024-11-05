@@ -72,11 +72,11 @@ func (r *rpcClient) Call(method string, args, reply any) (error, int) {
 	return json.NewDecoder(resp.Body).Decode(reply), resp.StatusCode
 }
 
-type rpcResponse struct {
-	Result json.RawMessage `json:"result"`
-	Error  rpcError        `json:"error"`
-	ID     int             `json:"id"`
-}
+// type rpcResponse struct {
+// 	Result json.RawMessage `json:"result"`
+// 	Error  rpcError        `json:"error"`
+// 	ID     int             `json:"id"`
+// }
 
 type rpcError struct {
 	Code    int    `json:"code"`

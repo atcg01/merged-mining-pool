@@ -23,6 +23,6 @@ func ScryptDigest(input string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	digest, err = scrypt.Key(digest, digest, 1024, 1, 1, 32)
+	digest, _ = scrypt.Key(digest, digest, 1024, 1, 1, 32)
 	return hex.EncodeToString(digest), nil
 }

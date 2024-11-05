@@ -37,12 +37,12 @@ func varUint(value uint) string {
 	return hex.EncodeToString(buffer)
 }
 
-func varUint64(value uint64) string {
-	eightByteBuffer := make([]byte, 8)
-	binary.LittleEndian.PutUint64(eightByteBuffer, value)
-	cleaned := removeInsignificantBytesLittleEndian(eightByteBuffer)
-	return hex.EncodeToString(cleaned)
-}
+// func varUint64(value uint64) string {
+// 	eightByteBuffer := make([]byte, 8)
+// 	binary.LittleEndian.PutUint64(eightByteBuffer, value)
+// 	cleaned := removeInsignificantBytesLittleEndian(eightByteBuffer)
+// 	return hex.EncodeToString(cleaned)
+// }
 
 func fourLittleEndianBytes(value interface{}) []byte {
 	fourByteBuffer := make([]byte, 4)
