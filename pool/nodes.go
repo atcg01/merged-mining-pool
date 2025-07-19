@@ -84,10 +84,10 @@ func (pool *PoolServer) listenForBlockNotifications() error {
 		chainName := msg.blockChainName
 		prevCount := hashblockCounterMap[chainName]
 		newCount := msg.blockHashCounter
-		// prevBlockHash := msg.previousBlockHash
+		prevBlockHash := msg.previousBlockHash
 
 		m := "**New %v block: %v - %v**"
-		// utils.LogInfof(m, chainName, newCount, prevBlockHash)
+		utils.LogInfof(m, chainName, newCount, prevBlockHash)
 
 		if prevCount != 0 && (prevCount+1) != newCount {
 			m = "We missed a %v block notification, previous count: %v current count: %v"

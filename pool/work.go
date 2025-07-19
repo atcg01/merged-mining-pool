@@ -19,7 +19,7 @@ const magic = "\xfa\xbe\x6d\x6d"
 
 // Function to create the coinbase transaction for merged mining
 func createMergedMiningCoinbase(auxblocks []*bitcoin.AuxBlock, merkleNonce int32) (string, error) {
-	merkleSize := 4
+	merkleSize := 16
 	// merkleSize := len(auxblocks)
 	// if merkleSize%2 == 1 { // Assume merkle_size is a power of 2
 	// 	merkleSize = merkleSize + 1
@@ -34,30 +34,10 @@ func createMergedMiningCoinbase(auxblocks []*bitcoin.AuxBlock, merkleNonce int32
 	return hex.EncodeToString(scriptSig), nil
 }
 
-// Calculate the slot number based on the provided nonce and chain ID
-// func calculateSlotNum(merkleNonce, chainID, merkleSize int32) int32 {
-// 	return chainID % merkleSize
-// }
-
 // Build the Merkle Root from the slots
 func buildMerkleRoot(merkleSize int, auxblocks []*bitcoin.AuxBlock) ([]byte, error) {
 
-	slots := make([][]byte, merkleSize)
-
-	for i, auxblock := range auxblocks {
-		hash, err := hex.DecodeString(auxblock.Hash)
-		if err != nil {
-			return nil, err
-		}
-		slots[i+1] = utils.ReverseBytes(hash)
-	}
-
-	// Fill unused slots with arbitrary data (e.g., zeros)
-	for i := range slots {
-		if slots[i] == nil {
-			slots[i] = make([]byte, 32) // Fill with 32 bytes of zeros
-		}
-	}
+	slots, _ := bitcoin.BuildMerkleLeaf(merkleSize, auxblocks)
 
 	var currentLevel [][]byte
 
@@ -95,8 +75,8 @@ func createScriptSig(merkleNonce, merkleSize int32, merkleRoot []byte) []byte {
 	scriptSig = append(scriptSig, reversedMerkleRoot...)
 	scriptSig = append(scriptSig, int32ToBytes(merkleSize)...)
 	scriptSig = append(scriptSig, int32ToBytes(merkleNonce)...)
-	parentChainId, _ := hex.DecodeString("00002632")
-	scriptSig = append(scriptSig, parentChainId...)
+	// parentChainId, _ := hex.DecodeString("00002632")
+	// scriptSig = append(scriptSig, parentChainId...)
 	return scriptSig
 }
 
@@ -154,8 +134,6 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 	if primaryBlockTemplate.Template == nil {
 		return errors.New("primary block template not yet set")
 	}
-	aux1Block := p.templates.GetAuxN(1)
-	aux2Block := p.templates.GetAuxN(2)
 
 	var err error
 
@@ -184,31 +162,16 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 		return err
 	}
 
-	shareStatus, shareDifficulty := validateAndWeighShare(&primaryBlockTemplate, aux1Block, aux2Block, p.config.PoolDifficulty)
-
-	heightMessage := fmt.Sprintf("%s:%v", p.config.BlockChainOrder[0], primaryBlockHeight)
-	if shareStatus == paux1Candidate {
-		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[1], aux1Block.Height)
-	} else if shareStatus == paux2Candidate {
-		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[2], aux2Block.Height)
-	} else if shareStatus == aux1Candidate {
-		heightMessage = fmt.Sprintf("%s:%v", p.config.BlockChainOrder[1], aux1Block.Height)
-	} else if shareStatus == aux2Candidate {
-		heightMessage = fmt.Sprintf("%s:%v", p.config.BlockChainOrder[2], aux2Block.Height)
-	} else if shareStatus == aux12Candidate {
-		heightMessage = fmt.Sprintf("%s:%v, %s:%v", p.config.BlockChainOrder[1], aux1Block.Height, p.config.BlockChainOrder[2], aux2Block.Height)
-	} else if shareStatus == tripleCandidate {
-		heightMessage = fmt.Sprintf("----- %s:%v, %s:%v, %s:%v", p.config.BlockChainOrder[0], primaryBlockHeight, p.config.BlockChainOrder[1], aux1Block.Height, p.config.BlockChainOrder[2], aux2Block.Height)
-	}
+	shareStatus, candidate, shareDifficulty := validateAndWeighShare(&primaryBlockTemplate, p.config.PoolDifficulty)
 
 	if shareStatus == shareInvalid {
 		m := "❔ Invalid share for block %v from %v [%v] [%v] [%v/%v]"
-		m = fmt.Sprintf(m, heightMessage, client.ip, rigID, client.userAgent, shareDifficulty, p.config.PoolDifficulty)
+		m = fmt.Sprintf(m, primaryBlockHeight, client.ip, rigID, client.userAgent, shareDifficulty, p.config.PoolDifficulty)
 		return errors.New(m)
 	}
 
 	m := "Valid share for block %v from %v [%v] [%v/%v]"
-	m = fmt.Sprintf(m, heightMessage, client.ip, rigID, shareDifficulty, p.config.PoolDifficulty)
+	m = fmt.Sprintf(m, primaryBlockHeight, client.ip, rigID, shareDifficulty, p.config.PoolDifficulty)
 	utils.LogInfo(m)
 
 	blockTarget := bitcoin.Target(primaryBlockTemplate.Template.Target)
@@ -232,13 +195,17 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 	if shareStatus == shareValid {
 		return nil
 	}
+	nbCandidate := 0
+	for _, value := range candidate {
+		if value {
+			nbCandidate++
+		}
+	}
+	statusReadable := fmt.Sprintf("%d candidates", nbCandidate)
 
-	statusReadable := statusMap[shareStatus]
-	successStatus := 0
-
-	m = "%v block candidate for block %v from %v [%v]"
-	m = fmt.Sprintf(m, statusReadable, heightMessage, client.ip, rigID)
-	utils.LogInfo(m)
+	// m = "%v block candidate for block %v from %v [%v]"
+	// m = fmt.Sprintf(m, statusReadable, primaryBlockHeight, client.ip, rigID)
+	// utils.LogInfo(m)
 
 	found := persistence.Found{
 		PoolID:               p.config.PoolName,
@@ -249,71 +216,11 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 		Source:               "",
 	}
 
-	prefix := ""
+	successSubmit := make([]bool, len(p.config.BlockChainOrder))
+	nbSuccess := 0
+	blockSubmitted := ""
 
-	aux1Name := p.config.GetAuxN(1)
-	if shareStatus == aux1Candidate || shareStatus == aux12Candidate || shareStatus == paux1Candidate || shareStatus == tripleCandidate {
-		err = p.submitAuxBlock(1, primaryBlockTemplate)
-		if err != nil {
-			// XXX NICO TODO HANDLE
-			utils.LogInfo("!!!! ERROR AUX1 submit", err)
-		} else {
-			// EnrichShare
-			aux1Target := bitcoin.Target(reverseHexBytes(aux1Block.Target))
-			aux1Difficulty, _ := aux1Target.ToDifficulty()
-			aux1Difficulty = aux1Difficulty * bitcoin.GetChain(aux1Name).ShareMultiplier()
-
-			found.Chain = aux1Name
-			found.Created = time.Now()
-			found.Hash = aux1Block.Hash
-			found.NetworkDifficulty = aux1Difficulty
-			found.BlockHeight = uint(aux1Block.Height)
-			// Likely doesn't exist on your AUX coin API unless you editted the daemon source to return this
-			found.TransactionConfirmationData = reverseHexBytes(aux1Block.CoinbaseHash)
-
-			err = persistence.Blocks.Insert(found)
-			if err != nil {
-				utils.LogError(err)
-			}
-			successStatus = aux1Candidate
-		}
-	}
-
-	aux2Name := p.config.GetAuxN(2)
-	if shareStatus == aux2Candidate || shareStatus == aux12Candidate || shareStatus == paux2Candidate || shareStatus == tripleCandidate {
-		err = p.submitAuxBlock(2, primaryBlockTemplate)
-		if err != nil {
-			// XXX NICO TODO HANDLE
-			utils.LogInfo("!!!! ERROR AUX2 submit", err)
-		} else {
-			// EnrichShare
-			aux2Target := bitcoin.Target(reverseHexBytes(aux2Block.Target))
-			aux2Difficulty, _ := aux2Target.ToDifficulty()
-			aux2Difficulty = aux2Difficulty * bitcoin.GetChain(aux2Name).ShareMultiplier()
-
-			found.Chain = aux2Name
-			found.Created = time.Now()
-			found.Hash = aux2Block.Hash
-			found.NetworkDifficulty = aux2Difficulty
-			found.BlockHeight = uint(aux2Block.Height)
-			// Likely doesn't exist on your AUX coin API unless you editted the daemon source to return this
-			found.TransactionConfirmationData = reverseHexBytes(aux2Block.CoinbaseHash)
-			// utils.LogInfof("%+v", found)
-			err = persistence.Blocks.Insert(found)
-			if err != nil {
-				utils.LogError(err)
-			}
-
-			if successStatus == aux1Candidate {
-				prefix = "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-				successStatus = aux12Candidate
-			} else {
-				successStatus = aux2Candidate
-			}
-		}
-	}
-
-	if shareStatus == primaryCandidate || shareStatus == paux1Candidate || shareStatus == paux2Candidate || shareStatus == tripleCandidate {
+	if candidate[0] {
 		err = p.submitBlockToChain(primaryBlockTemplate)
 		// if err != nil {
 		// Try to submit on different node
@@ -342,23 +249,50 @@ func (p *PoolServer) recieveWorkFromClient(share bitcoin.Work, client *stratumCl
 			utils.LogError(err)
 		}
 		found.Chain = ""
-		if successStatus == aux1Candidate {
-			prefix = "####################################"
-			successStatus = paux1Candidate
-		} else if successStatus == aux2Candidate {
-			prefix = "####################################"
-			successStatus = paux2Candidate
-		} else if successStatus == aux12Candidate {
-			prefix = "))))))))))))))))))))))))))))!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!####################################"
-			successStatus = tripleCandidate
-		} else {
-			successStatus = primaryCandidate
-		}
+		nbSuccess++
+		successSubmit[0] = true
+		blockSubmitted += fmt.Sprintf("%s - %d, ", p.config.GetPrimary(), primaryBlockHeight)
 	}
 
-	statusReadable = statusMap[successStatus]
+	for i, chainName := range p.config.BlockChainOrder {
+		if i == 0 {
+			continue
+		}
+		auxBlock := p.templates.GetAuxN(i)
+		if candidate[i] {
+			err = p.submitAuxBlock(i, primaryBlockTemplate)
+			if err != nil {
+				// XXX NICO TODO HANDLE
+				utils.LogErrorf("!!!! ERROR AUX %d submit %s", i, err)
+			} else {
+				// EnrichShare
+				aux1Target := bitcoin.Target(reverseHexBytes(auxBlock.Target))
+				auxDifficulty, _ := aux1Target.ToDifficulty()
+				auxDifficulty = auxDifficulty * bitcoin.GetChain(chainName).ShareMultiplier()
 
-	utils.LogInfof("✅ %s Successful %v submission of block %v from: %v [%v]", prefix, statusReadable, heightMessage, client.ip, rigID)
+				found.Chain = chainName
+				found.Created = time.Now()
+				found.Hash = auxBlock.Hash
+				found.NetworkDifficulty = auxDifficulty
+				found.BlockHeight = uint(auxBlock.Height)
+				// Likely doesn't exist on your AUX coin API unless you editted the daemon source to return this
+				found.TransactionConfirmationData = reverseHexBytes(auxBlock.CoinbaseHash)
+
+				err = persistence.Blocks.Insert(found)
+				if err != nil {
+					utils.LogError(err)
+				}
+				successSubmit[i] = true
+				nbSuccess++
+				blockSubmitted += fmt.Sprintf("%s - %d, ", chainName, auxBlock.Height)
+			}
+		}
+	}
+	icon := ""
+	for i := 0; i < nbSuccess; i++ {
+		icon = icon + "✅ "
+	}
+	utils.LogInfof("%sSuccessful %d/%d submission of block %v from: %v [%v]", icon, nbSuccess, nbCandidate, blockSubmitted, client.ip, rigID)
 
 	return nil
 }

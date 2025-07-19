@@ -15,7 +15,7 @@ type AuxMerkleBranch struct {
 }
 
 func makeAuxChainMerkleBranch(b BitcoinBlock, n int) AuxMerkleBranch {
-	merkleBranches, mask, err := buildMerkleBranchesAndMask(4, b.Template.AuxBlocks, n)
+	merkleBranches, mask, err := buildMerkleBranchesAndMask(8, b.Template.AuxBlocks, n)
 	if err != nil {
 		utils.LogError(err)
 	}
@@ -34,15 +34,28 @@ func (am *AuxMerkleBranch) Serialize() string {
 	return am.numberOfBranches + hex.EncodeToString(am.branchHashes) + am.mask
 }
 
-func buildMerkleBranchesAndMask(merkleSize int, auxblocks []*AuxBlock, n int) ([][]byte, string, error) {
+func getExpectedIndex(nChainId int, h int) uint32 {
+	// Calcul pseudo-aléatoire pour déterminer l'index dans l'arbre de Merkle
+	rand := uint32(0)
+	rand = rand*1103515245 + 12345
+	rand += uint32(nChainId)
+	rand = rand*1103515245 + 12345
+
+	return rand % (1 << h)
+}
+
+func BuildMerkleLeaf(merkleSize int, auxblocks []*AuxBlock) ([][]byte, error) {
 	slots := make([][]byte, merkleSize)
 
 	for i, auxblock := range auxblocks {
 		hash, err := hex.DecodeString(auxblock.Hash)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		slots[i+1] = utils.ReverseBytes(hash)
+		if slots[i] != nil {
+			utils.LogWarning("Conflit slot when building merkle tree", i, auxblock.ChainID)
+		}
+		slots[getExpectedIndex(auxblock.ChainID, 4)] = utils.ReverseBytes(hash)
 	}
 
 	// Fill unused slots with arbitrary data (e.g., zeros)
@@ -51,14 +64,23 @@ func buildMerkleBranchesAndMask(merkleSize int, auxblocks []*AuxBlock, n int) ([
 			slots[i] = make([]byte, 32) // Fill with 32 bytes of zeros
 		}
 	}
+	return slots, nil
+}
+
+func buildMerkleBranchesAndMask(merkleSize int, auxblocks []*AuxBlock, n int) ([][]byte, string, error) {
+	slots, _ := BuildMerkleLeaf(merkleSize, auxblocks)
 
 	var currentLevel [][]byte
 	merkleBranch := make([][]byte, 0)
 	var merkleMask string
 
+	searchedHash, _ := hex.DecodeString(auxblocks[n-1].Hash)
+	searchedHash = utils.ReverseBytes(searchedHash)
+	searchedIndex := 0
 	for idx, hash := range slots {
-		if bytes.Equal(hash, slots[n-1]) {
-			merkleMask = fmt.Sprint("0000000", idx)
+		if bytes.Equal(hash, searchedHash) {
+			searchedIndex = idx
+			merkleMask = fmt.Sprintf("0%d000000", idx)
 		}
 		currentLevel = append(currentLevel, hash)
 	}
@@ -66,15 +88,13 @@ func buildMerkleBranchesAndMask(merkleSize int, auxblocks []*AuxBlock, n int) ([
 	// Build the Merkle tree
 	for len(currentLevel) > 1 {
 		var newLevel [][]byte
+		siblingIndex := searchedIndex ^ 1 // XOR avec 1 pour obtenir l'index du voisin
+		merkleBranch = append(merkleBranch, currentLevel[siblingIndex])
 		for i := 0; i < len(currentLevel); i += 2 {
-			var left, right []byte
-			left = currentLevel[i]
-			right = currentLevel[i+1]
-			siblingIndex := i ^ 1 // XOR avec 1 pour obtenir l'index du voisin
-			merkleBranch = append(merkleBranch, currentLevel[siblingIndex])
-			newHash := utils.DoubleSHA256(append(left, right...))
+			newHash := utils.DoubleSHA256(append(currentLevel[i], currentLevel[i+1]...))
 			newLevel = append(newLevel, newHash)
 		}
+		searchedIndex /= 2
 		currentLevel = newLevel
 	}
 	return merkleBranch, merkleMask, nil

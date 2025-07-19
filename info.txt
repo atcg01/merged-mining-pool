@@ -1,11 +1,26 @@
-[2a02:8428:8d5b:5c01:98b1:d12c:e09b:6adb]:3032
+LITECOIN
+0 -> main block chain 
 
-tltc1qlj7sd7xpx3z609hk9y97wgq2l6yga98mt8vrp7-EW1Tn9f7WKhN6zE69gHxtrfEAcCJ9rgr8s-nchRBJMYpmryTREphNMcPwqwxuibdDtQfs.222
+DOGECOIN
+Mainnet
+ - consensus.nAuxpowChainId = 0x0062; // 98 - Josh Wise!
+Testnet
+ - consensus.nAuxpowChainId = 0x0062; // 98 - Josh Wise!
 
-tltc1qlj7sd7xpx3z609hk9y97wgq2l6yga98mt8vrp7-nchRBJMYpmryTREphNMcPwqwxuibdDtQfs-EW1Tn9f7WKhN6zE69gHxtrfEAcCJ9rgr8s.222
+BELLSCOIN
+Mainnet 
+ - consensus.nAuxpowChainId = 16;
+Testnet
+ - consensus.nAuxpowChainId = 16; 
 
-tltc1qlj7sd7xpx3z609hk9y97wgq2l6yga98mt8vrp7-nchRBJMYpmryTREphNMcPwqwxuibdDtQfs.33
+LUCKYCOIN
+Mainnet
+ - consensus.nAuxpowChainId = 0x2023;
+Testnet
+ - consensus.nAuxpowChainId = 0x0062; // 98 - Josh Wise!
 
-tltc1qlj7sd7xpx3z609hk9y97wgq2l6yga98mt8vrp7-EW1Tn9f7WKhN6zE69gHxtrfEAcCJ9rgr8s.22
-
-paxbelabbas14@gmail.com
+PEPECOIN
+Mainnet
+ - consensus.nAuxpowChainId = 0x003f; // 63
+Testnet
+ - consensus.nAuxpowChainId = 0x003f; // 63

@@ -21,6 +21,12 @@ func GetChain(chainName string) Blockchain {
 		return Litecoin{}
 	case "bellscoin":
 		return Bellscoin{}
+	case "luckycoin":
+		return Luckycoin{}
+	case "pepecoin":
+		return Pepecoin{}
+	case "vergecoin":
+		return Vergecoin{}
 	default:
 		panic("Unknown blockchain: " + chainName)
 	}
